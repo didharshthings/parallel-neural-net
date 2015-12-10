@@ -78,20 +78,7 @@ int main (int argc, char** argv)
   //net_print(net);
 
 
-/*
-  int no_of_inputs = 2;
-  int no_of_outputs = 1;
-  int no_of_pairs = no_of_inputs/no_of_outputs;
 
-  input[0] = 1.0 ; input[1] = 1.0;
-  target[0] = 0.0;
-  input[2] = 1.0 ; input[3] = 0.0;
-  target[1] = 1.0;
-  input[4] = 0.0 ; input[5] = 1.0;
-  target[2] = 1.0;
-  input[6] = 0.0 ; input[7] = 0.0;
-  target[3] = 0.0;
-*/
 //reading from file
 int num_inputs = 4;
 int num_outputs = 1;

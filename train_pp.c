@@ -19,20 +19,21 @@ distributing dataset and training networks at each node
 
 #define MAX_LAYERS 10
 
-int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
+void ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 	FILE *ifp;
-	int i, j, val;
+	int i, j;
+	double val;
 	char *mode = "r";
 	ifp = fopen(file_name, mode);
 
 	if (ifp == NULL) {
-		return 1;
+
 	}
 
 	i = 0;
 	while((!feof(ifp)) && (i < (valuesPerLine*numLines)))
 	{
-		fscanf(ifp, "%d ", &val);
+		fscanf(ifp, "%lf ", &val);
 
 		arr[i] = val;
 
@@ -41,8 +42,6 @@ int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 
 	// closing file
 	fclose(ifp);
-
-	return 0;
 }
 void SendInputs(double *input, int trainingInputsCnt, int sendCnt, int worldSize, int tag)
 {
@@ -111,29 +110,30 @@ int main (int argc, char** argv)
 
   //MPI Derived data type
   MPI_Datatype global_weights;
-  MPI_Type_contiguous(13,MPI_DOUBLE,&global_weights);
+  MPI_Type_contiguous(9,MPI_DOUBLE,&global_weights);
   MPI_Type_commit(&global_weights);
 
   // Initialize the pretty printer
   init_pprintf( rank );
   pp_set_banner( "main" );
 
-  int num_inputs = 10;
+  int num_inputs = 5;
   int num_outputs = 1;
 
-
 // file handling stuff
+  int sample_size;
+	sample_size = atoi(argv[1]);
+
   double* trainingSamples;
   double* trainingTargets;
   int numTrainingSamples, numTestSamples;
 
-  trainingSamples = (double *) calloc(num_inputs * 10, sizeof(double));
-	trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
+  trainingSamples = (double *) calloc(num_inputs * sample_size, sizeof(double));
+	trainingTargets = (double *) calloc(num_outputs * sample_size, sizeof(double));
   char* trainingFile, * trainingTargetFile, * testingFile;
 
   #define inputs(i) (trainingSamples + i * num_inputs)
   #define targets(i) (trainingTargets + i* num_outputs)
-
 
 
   trainingFile = "xor.txt";
@@ -142,22 +142,23 @@ int main (int argc, char** argv)
 
   if(rank == 0)
   {
-    ReadFile(trainingFile, num_inputs, 24, trainingSamples);
-    ReadFile(trainingTargetFile, num_outputs, 24, trainingTargets);
+    ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
+    ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
 
-    SendInputs(&trainingSamples[0], 24, num_inputs, np, 11);
+    SendInputs(&trainingSamples[0], sample_size, num_inputs, np, 11);
 
-    SendInputs(&trainingTargets[0], 24, num_outputs, np, 22);
+    SendInputs(&trainingTargets[0], sample_size, num_outputs, np, 22);
 
   }
   else
   {
 
-
-		numTrainingSamples  = 10;
+		numTrainingSamples  = sample_size/(np-1);
 
 		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-	  MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
+  MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+
 		//pprintf("recieved training data by rank %d \n",rank);
 	}
 
@@ -168,7 +169,7 @@ int main (int argc, char** argv)
 
    network_t *global_net;
    int global_layers[3];
-   global_layers[0] = 10;
+   global_layers[0] = 5;
    global_layers[1] = 3;
    global_layers[2] = 1;
    global_net = net_allocate_l(3,global_layers);
@@ -195,7 +196,7 @@ int main (int argc, char** argv)
    double start_time, end_time;
    start_time = MPI_Wtime();
 	 int count = 0;
-	 while(global_epoch <= 10 )
+	 while(global_epoch <= 100 )
    {
     for(l=1;l<np;l++)
     {
@@ -248,7 +249,7 @@ int main (int argc, char** argv)
 
 
     int layers[3];
-    layers[0] = 10;
+    layers[0] = 5;
     layers[1] = 3;
     layers[2] = 1;
 
@@ -271,7 +272,7 @@ int main (int argc, char** argv)
            for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
               local_net->layer[i].neuron[j].weight[k] = local_weights[getIndex3d(i,j,k,4,3)];
 
-    while((epoch <= 10))
+    while((epoch <= 100))
     {
         //sync
         //pprintf("starting training\n");
@@ -317,7 +318,8 @@ int main (int argc, char** argv)
 		free(local_weights);
 	 }
 
-
+	 free(trainingSamples);
+	 free(trainingTargets);
     MPI_Finalize();
 return 0;
 }
