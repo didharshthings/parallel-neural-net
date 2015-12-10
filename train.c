@@ -68,11 +68,15 @@ int main (int argc, char** argv)
   struct timeval end;
 
 
-  num_neurons[0] = 2;
-  num_neurons[1] = 3;
-  num_neurons[2] = 1;
+  num_neurons[0] = 50;
+  num_neurons[1] = 40;
+	num_neurons[2] = 20;
+	num_neurons[3] = 30;
+	num_neurons[4] = 10;
+	num_neurons[5] = 1;
 
-  net = net_allocate_l(3,num_neurons);
+
+  net = net_allocate_l(6,num_neurons);
   //printf("initial net \n");
   //net_print(net);
 
@@ -92,7 +96,7 @@ int main (int argc, char** argv)
   target[3] = 0.0;
 */
 //reading from file
-int num_inputs = 2;
+int num_inputs = 50;
 int num_outputs = 1;
 
 num_pairs = num_inputs/num_outputs;
@@ -102,7 +106,7 @@ double* trainingSamples;
 double* trainingTargets;
 int numTrainingSamples, numTestSamples;
 
-trainingSamples = (double *) calloc(num_inputs * 2, sizeof(double));
+trainingSamples = (double *) calloc(num_inputs * 50, sizeof(double));
 trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
 char* trainingFile, * trainingTargetFile, * testingFile;
 
@@ -111,11 +115,11 @@ char* trainingFile, * trainingTargetFile, * testingFile;
 
 
 
-trainingFile = "xor.txt";
-trainingTargetFile = "xor_targets.txt";
+trainingFile = "small_test_set.txt";
+trainingTargetFile = "small_test_targets.txt";
 
-ReadFile(trainingFile, num_inputs, 4, trainingSamples);
-ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
+ReadFile(trainingFile, num_inputs, 100, trainingSamples);
+ReadFile(trainingTargetFile, num_outputs, 100, trainingTargets);
 
 // training
   int epoch = 0;
