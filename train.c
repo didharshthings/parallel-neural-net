@@ -74,7 +74,7 @@ int main (int argc, char** argv)
   double total_error = 0;
 
   gettimeofday(&start, NULL);
-  while((epoch <= 100) && (total_error >= 0.0))
+  while((epoch <= 100))
   {
     i = rand () % no_of_pairs ;
     net_compute(net, inputs(i), output);
