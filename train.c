@@ -13,6 +13,31 @@ Author - Siddharth Singh
 #define MAX_SIZE 10000
 #define MAX_LAYERS 10
 
+int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
+	FILE *ifp;
+	int i, j, val;
+	char *mode = "r";
+	ifp = fopen(file_name, mode);
+
+	if (ifp == NULL) {
+		return 1;
+	}
+
+	i = 0;
+	while((!feof(ifp)) && (i < (valuesPerLine*numLines)))
+	{
+		fscanf(ifp, "%d ", &val);
+
+		arr[i] = val;
+
+		i++;
+	}
+
+	// closing file
+	fclose(ifp);
+
+	return 0;
+}
 double calctime(struct timeval start, struct timeval end)
 {
   double time = 0.0;
@@ -32,8 +57,6 @@ int main (int argc, char** argv)
 {
   network_t *net;
   int num_pairs;
-  int num_inputs;
-  int num_outputs;
   double input[8];
   double target[4];
   double output[4];
@@ -53,9 +76,8 @@ int main (int argc, char** argv)
   //printf("initial net \n");
   //net_print(net);
 
-  #define inputs(i) (input + i * no_of_inputs)
-  #define targets(i) (target + i* no_of_outputs)
 
+/*
   int no_of_inputs = 2;
   int no_of_outputs = 1;
   int no_of_pairs = no_of_inputs/no_of_outputs;
@@ -68,6 +90,32 @@ int main (int argc, char** argv)
   target[2] = 1.0;
   input[6] = 0.0 ; input[7] = 0.0;
   target[3] = 0.0;
+*/
+//reading from file
+int num_inputs = 2;
+int num_outputs = 1;
+
+num_pairs = num_inputs/num_outputs;
+
+// file handling stuff
+double* trainingSamples;
+double* trainingTargets;
+int numTrainingSamples, numTestSamples;
+
+trainingSamples = (double *) calloc(num_inputs * 2, sizeof(double));
+trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
+char* trainingFile, * trainingTargetFile, * testingFile;
+
+#define inputs(i) (trainingSamples + i * num_inputs)
+#define targets(i) (trainingTargets + i* num_outputs)
+
+
+
+trainingFile = "xor.txt";
+trainingTargetFile = "xor_targets.txt";
+
+ReadFile(trainingFile, num_inputs, 4, trainingSamples);
+ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
 
 // training
   int epoch = 0;
@@ -76,7 +124,7 @@ int main (int argc, char** argv)
   gettimeofday(&start, NULL);
   while((epoch <= 100))
   {
-    i = rand () % no_of_pairs ;
+    i = rand () % num_pairs ;
     net_compute(net, inputs(i), output);
 
     error = net_compute_output_error(net, targets(i));
