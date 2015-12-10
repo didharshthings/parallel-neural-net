@@ -131,11 +131,11 @@ int main (int argc, char** argv)
   int e_start = MPE_Log_get_event_number();
   int e_end = MPE_Log_get_event_number();
 
-	MPE_Describe_stage(a_start,a_end,"a","red");
-	MPE_Describe_stage(b_start,b_end,"b","green");
-	MPE_Describe_stage(c_start,c_end,"c", "gray");
-	MPE_Describe_stage(d_start,d_end,"d","blue");
-	MPE_Describe_stage(e_start,e_end,"e","yellow");
+//	MPE_Describe_stage(a_start,a_end,"a","red");
+//	MPE_Describe_stage(b_start,b_end,"b","green");
+//	MPE_Describe_stage(c_start,c_end,"c", "gray");
+//	MPE_Describe_stage(d_start,d_end,"d","blue");
+//	MPE_Describe_stage(e_start,e_end,"e","yellow");
 
 
 // file handling stuff
