@@ -68,12 +68,9 @@ int main (int argc, char** argv)
   struct timeval end;
 
 
-  num_neurons[0] = 50;
-  num_neurons[1] = 40;
-	num_neurons[2] = 20;
-	num_neurons[3] = 30;
-	num_neurons[4] = 10;
-	num_neurons[5] = 1;
+  num_neurons[0] = 4;
+  num_neurons[1] = 3;
+	num_neurons[2] = 1;
 
 
   net = net_allocate_l(6,num_neurons);
@@ -96,7 +93,7 @@ int main (int argc, char** argv)
   target[3] = 0.0;
 */
 //reading from file
-int num_inputs = 50;
+int num_inputs = 4;
 int num_outputs = 1;
 
 num_pairs = num_inputs/num_outputs;
@@ -106,7 +103,7 @@ double* trainingSamples;
 double* trainingTargets;
 int numTrainingSamples, numTestSamples;
 
-trainingSamples = (double *) calloc(num_inputs * 50, sizeof(double));
+trainingSamples = (double *) calloc(num_inputs * 4, sizeof(double));
 trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
 char* trainingFile, * trainingTargetFile, * testingFile;
 
@@ -115,18 +112,19 @@ char* trainingFile, * trainingTargetFile, * testingFile;
 
 
 
-trainingFile = "small_test_set.txt";
-trainingTargetFile = "small_test_targets.txt";
+trainingFile = "xor.txt";
+trainingTargetFile = "xor_targets.txt";
 
-ReadFile(trainingFile, num_inputs, 100, trainingSamples);
-ReadFile(trainingTargetFile, num_outputs, 100, trainingTargets);
+
+ReadFile(trainingFile, num_inputs, 4, trainingSamples);
+ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
 
 // training
   int epoch = 0;
   double total_error = 0;
 
   gettimeofday(&start, NULL);
-  while((epoch <= 100))
+  while((epoch <= 10))
   {
     i = rand () % num_pairs ;
     net_compute(net, inputs(i), output);
@@ -141,7 +139,7 @@ ReadFile(trainingTargetFile, num_outputs, 100, trainingTargets);
     {
       total_error = 0.9 * total_error + 0.1 * error;
     }
-    //net_print(net);
+    net_print(net);
     epoch++;
   }
   gettimeofday(&end, NULL);
