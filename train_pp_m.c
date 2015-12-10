@@ -2,6 +2,7 @@
  * Term Project for CSCI 5576
  * Model Parallelism
  * Splitting each layer at different nodes
+
  */
 
 #include <getopt.h>
@@ -10,6 +11,24 @@
 #include <stdio.h>
 #include "nn.h"
 #include <mpi.h>
+#include <sys/time.h>
+#include <sys/types.h>
+#include "pprintf.h"
+
+double calctime(struct timeval start, struct timeval end)
+{
+  double time = 0.0;
+
+  //struct timeval {
+  //   time_t      tv_sec;     /* seconds */
+  //   suseconds_t tv_usec;    /* microseconds */
+  //};
+  time = end.tv_usec - start.tv_usec;
+  time = time/1000000;
+  time += end.tv_sec - start.tv_sec;
+
+  return time;
+}
 
 int ReadFile(char *file_name, int valuesPerLine, int numLines, float* arr){
 	FILE *ifp;
@@ -95,39 +114,59 @@ int main(int argc, char** argv)
    target[3] = 0.0;
 
    int layers[3];
-   layers[0] = 3;
+   layers[0] = 2;
    layers[1] = 3;
-   layers[2] = 3;
+   layers[2] = 1;
 
    //one layer in each node
+
+   layer_t* local_layer;
+
+   local_layer = (layer_t *)calloc(1,sizeof(layer_t));
 
    int upper_layer,lower_layer;
 
    if (rank == 0 )
    {
-    upper_layer = NULL;
+    upper_layer = MPI_PROC_NULL;
     lower_layer = 1;
+    local_layer->no_of_neurons = 2;
+
    }
-   else if (rank == np)
+   else if (rank == np - 1)
    {
     upper_layer = np-1;
-    lower_layer = 0;
+    lower_layer = MPI_PROC_NULL;
+    local_layer->no_of_neurons = 1;
+
    }
    else
    {
     upper_layer = rank-1;
     lower_layer = rank+1;
+    local_layer->no_of_neurons = 3;
+
    }
 
-   layer_t local_layer;
-
-   local_layer = (layer_t *)calloc(1,sizeof(layer_t));
 
    //allocate neurons
-   layer->no_of_neurons = 3;
-   layer->neurons = (neuron_t *) calloc(4,sizeof(neuron_t));
+   local_layer->neuron = (neuron_t *) calloc(4,sizeof(neuron_t));
+   MPI_Datatype layer_output;
+   MPI_Datatype layer_input;
+   MPI_Datatype layer_error;
+   MPI_Datatype layer_weights;
 
-   if(rank ==0)
+   MPI_Type_contiguous(27,MPI_FLOAT,&layer_output);
+   MPI_Type_contiguous(27,MPI_FLOAT,&layer_input);
+   MPI_Type_contiguous(27,MPI_FLOAT,&layer_weights);
+   MPI_Type_contiguous(27,MPI_FLOAT,&layer_error);
+
+   MPI_Type_commit(&layer_output);
+   MPI_Type_commit(&layer_input);
+   MPI_Type_commit(&layer_weights);
+   MPI_Type_commit(&layer_error);
+
+   if(rank == 0)
    {
         //set input
         int i;
@@ -136,94 +175,103 @@ int main(int argc, char** argv)
           ReadFile(trainingFile, num_inputs, 4, trainingSamples);
           ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
         }
-        for(i=0;i<layer->no_of_neurons;l++)
+        for(i=0;i<local_layer->no_of_neurons;i++)
         {
-            layer->neuron[i].output = input[i];
-        }:
-
-   }
-
-   if(rank == np-1)
-   {
-        int i;
-        for(i=0;i< layer->no_of_neurons;i++)
-        {
-            output[i] = layer->neuron[i].output
+            local_layer->neuron[i].output = input[i];
         }
 
-        //MPI_Send
+  }
 
-   }
 
    //start training
 
    int epochs = 0;
-   int error;
-   // MPI Derived datatype
    while(epochs<=2)
    {
      //forward pass
       int i,j;
-
-      if(rank = np-1)
+      pprintf("epoch %d",epochs);
+      if(rank == np-1)
       {
-        float* recieve output;
-        MPI_Recieve(&recieve_output,num_neurons,MPI_FLOAT,rank - 1,0,MPI_COMM_WORLD);//output
-
+        float* recieve_output;
+        recieve_output = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        MPI_Recv(recieve_output,1,layer_output,rank - 1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);//output
+        pprintf("Forward propogation over");
         //compute output error
         int global_error = 0.0;
+        /*
         for (i = 0; i < layer->no_of_neurons; i++) {
           output = layer->neuron[i].output;
           error = target[i] - output;
-          layer->neuron[i].error = output * (1.0 - output) * error;
+          local_layer->neuron[i].error = output * (1.0 - output) * error;
           global_error += error * error;
         }
+        */
         global_error *= 0.5;
 
         //backpropogation
 
         float *send_weights;
         float *send_error;
-        MPI_Send(&send_weights, num_neurons, MPI_FLOAT,rank-1,0,MPI_COMM_WORLD) //weights
-        MPI_Send(&send_error, num_neurons, MPI_FLOAT,rank-1,0,MPI_COMM_WORLD) //error
+        send_weights = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        send_error = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        //MPI_Send(send_weights, 1, layer_weights,rank-1,0,MPI_COMM_WORLD); //weights
+        //MPI_Send(send_error, 1,layer_error ,rank-1,0,MPI_COMM_WORLD); //error
 
       }
-      else if (rank = 0)
+      else if (rank == 0)
       {
            float* send_output;
-           MPI_Send(&send_output, num_neurons, MPI_FLOAT, rank +1,0,MPI_COMM_WORLD);
-
+           send_output = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+           pprintf("starting forward propogation");
+           MPI_Send(send_output, 1, layer_output, rank + 1 ,0,MPI_COMM_WORLD);
+           pprintf("FP: sending output\n");
+           float* send_weights;
+           float* send_error;
+           send_weights = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+           send_error = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
            //back propogation
-        MPI_Recieve(&send_weights, num_neurons, MPI_FLOAT,rank+1,0,MPI_COMM_WORLD) //weights
-        MPI_Recieve(&send_error, num_neurons, MPI_FLOAT,rank+1,0,MPI_COMM_WORLD) //error
+        //MPI_Recv(send_weights, 1, layer_weights,rank+1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //weights
+        //pprintf("recieving weights \n");
+        //MPI_Recv(send_error, 1, layer_error,rank+1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //error
+        //pprintf("recieving weights \n");
 
       }
       else
       {
-        float* recieve output;
-        MPI_Recieve(&recieve_output,num_neurons,MPI_FLOAT,rank - 1,0,MPI_COMM_WORLD);//output array
+        float* recieve_output;
+        recieve_output = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        MPI_Recv(recieve_output,1,layer_output,rank - 1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE);//output array
+        pprintf("FP :recieving output\n");
         //compute
         float* send_output;
-        MPI_Send(&send_output, num_neurons, MPI_FLOAT, rank +1,0,MPI_COMM_WORLD);
-
+        send_output = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        MPI_Send(send_output, 1 , layer_output, rank +1,0,MPI_COMM_WORLD);
+        pprintf("FP :sending output");
+        float* send_weights;
+        float* send_error;
+        send_weights = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
+        send_error = (float *) calloc(local_layer->no_of_neurons, sizeof(float));
         //back propogation
-
-        MPI_Recieve(&send_weights, num_neurons, MPI_FLOAT,rank+1,0,MPI_COMM_WORLD) //weights
-        MPI_Recieve(&send_error, num_neurons, MPI_FLOAT,rank+1,0,MPI_COMM_WORLD) //error
-
-         for (nl = 0; nl <= lower->no_of_neurons; nl++)
+        /*
+        MPI_Recv(send_weights, 1, layer_weights,rank+1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //weights
+        pprintf("re")
+        MPI_Recv(send_error, 1, layer_error,rank+1,0,MPI_COMM_WORLD,MPI_STATUS_IGNORE); //error
+        /*
+        for (i = 0; i <= lower->no_of_neurons; i++)
          {
              error = 0.0;
-             for (nu = 0; nu < upper->no_of_neurons; nu++)
+             for (j = 0; j < upper->no_of_neurons; j++)
              {
                 error += upper->neuron[nu].weight[nl] * upper->neuron[nu].error;
              }
                output = lower->neuron[nl].output;
                lower->neuron[nl].error = output * (1.0 - output) * error;
           }
+          */
 
-        MPI_Send(&send_weights, num_neurons, MPI_FLOAT,rank-1,0,MPI_COMM_WORLD) //weights
-        MPI_Send(&send_error, num_neurons, MPI_FLOAT,rank-1,0,MPI_COMM_WORLD) //error
+        //MPI_Send(send_weights,1, layer_weights,rank-1,0,MPI_COMM_WORLD); //weights
+        //MPI_Send(send_error, 1, layer_error,rank-1,0,MPI_COMM_WORLD); //error
 
 
 
@@ -231,5 +279,13 @@ int main(int argc, char** argv)
       }
      epochs++;
    }
-   net_print(global_net);
+   if(rank == np-1)
+   {
+        int i;
+        for(i=0;i< local_layer->no_of_neurons;i++)
+        {
+            output[i] = local_layer->neuron[i].output;
+        }
+
+   }
 }

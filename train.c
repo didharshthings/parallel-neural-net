@@ -26,13 +26,13 @@ int main (int argc, char** argv)
   int i,j;
   int num_neurons[3];
 
-  num_neurons[0] = 3;
+  num_neurons[0] = 2;
   num_neurons[1] = 3;
   num_neurons[2] = 1;
 
   net = net_allocate_l(3,num_neurons);
-  printf("initial net \n");
-  net_print(net);
+  //printf("initial net \n");
+  //net_print(net);
 
   #define inputs(i) (input + i * no_of_inputs)
   #define targets(i) (target + i* no_of_outputs)
@@ -57,10 +57,7 @@ int main (int argc, char** argv)
   {
     i = rand () % no_of_pairs ;
     net_compute(net, inputs(i), output);
-    for (i =0 ; i<3;i++)
-    {
-    //  printf("output[%d], %f \n",i,output[i]);
-    }
+
     error = net_compute_output_error(net, targets(i));
     net_train(net);
     if (epoch == 0)
@@ -78,6 +75,7 @@ int main (int argc, char** argv)
   input[0] = 0.0; input[1] = 0.0;
   //use MPI_TYPE create sub array to split input
 
+ net_print(net);
   net_compute(net,inputs(i),output);
 
   for(j=0;j<1;j++)

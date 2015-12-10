@@ -10,6 +10,7 @@ Author - Siddharth Singh
 #include <string.h>
 #include <math.h>
 #include "nn.h"
+#include <omp.h>
 
 
 #define DEFAULT_MOMENTUM 0.1
@@ -22,13 +23,13 @@ Author - Siddharth Singh
 
 /*!\brief Assign random values to all weights in the network.
  * \param net Pointer to neural network.
- * \param range doubleing point number.
+ * \param range Floating point number.
  *
  * All weights in the neural network are assigned a random value
  * from the interval [-range,range].
  */
 void
-net_randomize (network_t *net, double range)
+net_randomize (network_t *net, float range)
 {
   int l, nu, nl;
 
@@ -39,7 +40,7 @@ net_randomize (network_t *net, double range)
     for (nu = 0; nu < net->layer[l].no_of_neurons; nu++) {
       for (nl = 0; nl <= net->layer[l - 1].no_of_neurons; nl++) {
         net->layer[l].neuron[nu].weight[nl] =
-          2.0 * range * ((double) random () / RAND_MAX - 0.5);
+          2.0 * range * ((float) random () / RAND_MAX - 0.5);
       }
     }
   }
@@ -150,9 +151,9 @@ allocate_weights (layer_t *lower, layer_t *upper)
 
   for (n = 0; n < upper->no_of_neurons; n++) {
     upper->neuron[n].weight =
-      (double *) calloc (lower->no_of_neurons + 1, sizeof (double));
+      (float *) calloc (lower->no_of_neurons + 1, sizeof (float));
     upper->neuron[n].delta =
-      (double *) calloc (lower->no_of_neurons + 1, sizeof (double));
+      (float *) calloc (lower->no_of_neurons + 1, sizeof (float));
   }
 
   /* no incoming weights for bias neurons */
@@ -270,10 +271,10 @@ net_free (network_t *net)
 
 /*!\brief Change the momentum of a network.
  * \param net Pointer to a neural network.
- * \param momentum doubleing point number.
+ * \param momentum Floating point number.
  */
 void
-net_set_momentum (network_t *net, double momentum)
+net_set_momentum (network_t *net, float momentum)
 {
   assert (net != NULL);
   assert (momentum >= 0.0);
@@ -285,7 +286,7 @@ net_set_momentum (network_t *net, double momentum)
  * \param net Pointer to a neural network.
  * \return Momentum of the neural work.
  */
-double
+float
 net_get_momentum (const network_t *net)
 {
   assert (net != NULL);
@@ -296,10 +297,10 @@ net_get_momentum (const network_t *net)
 
 /*!\brief Change the learning rate of a network.
  * \param net Pointer to a neural network.
- * \param learning_rate doubleing point number.
+ * \param learning_rate Floating point number.
  */
 void
-net_set_learning_rate (network_t *net, double learning_rate)
+net_set_learning_rate (network_t *net, float learning_rate)
 {
   assert (net != NULL);
   assert (learning_rate >= 0.0);
@@ -311,7 +312,7 @@ net_set_learning_rate (network_t *net, double learning_rate)
  * \param net Pointer to a neural network.
  * \return Learning rate of the neural work.
  */
-double
+float
 net_get_learning_rate (const network_t *net)
 {
   assert (net != NULL);
@@ -380,13 +381,13 @@ net_get_no_of_weights (const network_t *net)
  * \param l Number of lower layer.
  * \param nl Number of neuron in the lower layer.
  * \param nu Number of neuron in the next layer.
- * \param weight doubleing point number.
+ * \param weight Floating point number.
  * The weight connecting the neuron numbered nl in the layer
  * numbered l with the neuron numbered nu in the layer numbered l+1
  * is set to weight.
  */
 void
-net_set_weight (network_t *net, int l, int nl, int nu, double weight)
+net_set_weight (network_t *net, int l, int nl, int nu, float weight)
 {
   assert (net != NULL);
   assert (0 <= l && l < net->no_of_layers);
@@ -404,7 +405,7 @@ net_set_weight (network_t *net, int l, int nl, int nu, double weight)
  * \return Weight connecting the neuron numbered nl in the layer
  * numbered l with the neuron numbered nu in the layer numbered l+1.
  */
-double
+float
 net_get_weight (const network_t *net, int l, int nl, int nu)
 {
   assert (net != NULL);
@@ -426,7 +427,7 @@ net_get_weight (const network_t *net, int l, int nl, int nu)
  * weight returned by this routine is simply the weight from this extra
  * neuron in the layer numbered l-1 to the neuron numbered nu in the
  * layer numbered l. */
-double
+float
 net_get_bias (const network_t *net, int l, int nu)
 {
   assert (net != NULL);
@@ -440,7 +441,7 @@ net_get_bias (const network_t *net, int l, int nu)
  * \param net Pointer to a neural network.
  * \param l Number of layer.
  * \param nu Number of the layer.
- * \param weight doubleing point number.
+ * \param weight Floating point number.
  * Set the bias weight of the neuron numbered nu in the layer numbered l.
  *
  * [internal] Bias is implemented by having an extra neuron in every
@@ -449,7 +450,7 @@ net_get_bias (const network_t *net, int l, int nu)
  * layer numbered l-1 to the neuron numbered nu in the layer numbered l.
  */
 void
-net_set_bias (network_t *net, int l, int nu, double weight)
+net_set_bias (network_t *net, int l, int nu, float weight)
 {
   assert (net != NULL);
   assert (0 < l && l < net->no_of_layers);
@@ -662,7 +663,7 @@ net_fbprint (FILE *file, const network_t *net)
   int l, nu;
   size_t info_dim = net->no_of_layers + 1;
   int info[info_dim];
-  double constants[3];
+  float constants[3];
 
   assert (file != NULL);
   assert (net != NULL);
@@ -680,12 +681,12 @@ net_fbprint (FILE *file, const network_t *net)
   constants[0] = net->momentum;
   constants[1] = net->learning_rate;
   constants[2] = net->global_error;
-  fwrite (constants, sizeof (double), 3, file);
+  fwrite (constants, sizeof (float), 3, file);
 
   /* write network weights */
   for (l = 1; l < net->no_of_layers; l++) {
     for (nu = 0; nu < net->layer[l].no_of_neurons; nu++) {
-      fwrite (net->layer[l].neuron[nu].weight, sizeof (double),
+      fwrite (net->layer[l].neuron[nu].weight, sizeof (float),
               net->layer[l - 1].no_of_neurons + 1, file);
     }
   }
@@ -720,14 +721,14 @@ net_fbscan (FILE *file)
   free (arglist);
 
   /* read network constants */
-  fread (&net->momentum, sizeof (double), 1, file);
-  fread (&net->learning_rate, sizeof (double), 1, file);
-  fread (&net->global_error, sizeof (double), 1, file);
+  fread (&net->momentum, sizeof (float), 1, file);
+  fread (&net->learning_rate, sizeof (float), 1, file);
+  fread (&net->global_error, sizeof (float), 1, file);
 
   /* read network weights */
   for (l = 1; l < net->no_of_layers; l++) {
     for (nu = 0; nu < net->layer[l].no_of_neurons; nu++) {
-      fread (net->layer[l].neuron[nu].weight, sizeof (double),
+      fread (net->layer[l].neuron[nu].weight, sizeof (float),
              net->layer[l - 1].no_of_neurons + 1, file);
     }
   }
@@ -788,7 +789,7 @@ net_bload (const char *filename)
 /*!\brief [Internal] Copy inputs to input layer of a network.
  */
 static inline void
-set_input (network_t *net, const double *input)
+set_input (network_t *net, const float *input)
 {
   int n;
 
@@ -803,7 +804,7 @@ set_input (network_t *net, const double *input)
 /*!\brief [Interal] Copy outputs from output layer of a network.
  */
 static inline void
-get_output (const network_t *net, double *output)
+get_output (const network_t *net, float *output)
 {
   int n;
 
@@ -822,8 +823,8 @@ get_output (const network_t *net, double *output)
 
 /*!\brief [Internal] Activation function of a neuron.
  */
-static inline double
-sigma (double x)
+static inline float
+sigma (float x)
 {
   return 1.0 / (1.0 + exp (-x));
 }
@@ -839,7 +840,7 @@ static inline void
 propagate_layer (layer_t *lower, layer_t *upper)
 {
   int nu, nl;
-  double value;
+  float value;
 
   assert (lower != NULL);
   assert (upper != NULL);
@@ -872,7 +873,7 @@ forward_pass (network_t *net)
 
 /*!\brief Compute the output error of a network.
  * \param net Pointer to a neural network.
- * \param target Pointer to a sequence of doubleing point numbers.
+ * \param target Pointer to a sequence of floating point numbers.
  * \return Output error of the neural network.
  *
  * Before calling this routine, net_compute() should have been called to
@@ -885,11 +886,11 @@ forward_pass (network_t *net)
  * network) the errors associated with each of the outputs. Note
  * that the targets shoud lie in the interval [0,1], since the outputs
  * of the neural network will always lie in the interval (0,1). */
-double
-net_compute_output_error (network_t *net, const double *target)
+float
+net_compute_output_error (network_t *net, const float *target)
 {
   int n;
-  double output, error;
+  float output, error;
 
   assert (net != NULL);
   assert (target != NULL);
@@ -916,7 +917,7 @@ net_compute_output_error (network_t *net, const double *target)
  * routine merely returns the output error (which is stored internally
  * in the neural network).
  */
-double
+float
 net_get_output_error (const network_t *net)
 {
   assert (net != NULL);
@@ -930,7 +931,7 @@ static inline void
 backpropagate_layer (layer_t *lower, layer_t *upper)
 {
   int nl, nu;
-  double output, error;
+  float output, error;
 
   assert (lower != NULL);
   assert (upper != NULL);
@@ -965,7 +966,7 @@ static inline void
 adjust_weights (network_t *net)
 {
   int l, nu, nl;
-  double error, delta;
+  float error, delta;
 
   assert (net != NULL);
 
@@ -994,8 +995,8 @@ adjust_weights (network_t *net)
 
 /*!\brief Compute outputs of a network for given inputs.
  * \param net Pointer to a neural network.
- * \param input Pointer to sequence of doubleing point numbers.
- * \param output Pointer to sequence of doubleing point numbers or NULL.
+ * \param input Pointer to sequence of floating point numbers.
+ * \param output Pointer to sequence of floating point numbers or NULL.
  *
  * Compute outputs of a neural network for given inputs by forward
  * propagating the inputs through the layers. If output is non-NULL, the
@@ -1005,7 +1006,7 @@ adjust_weights (network_t *net)
  * rescale them if neccesary.
  */
 void
-net_compute (network_t *net, const double *input, double *output)
+net_compute (network_t *net, const float *input, float *output)
 {
   assert (net != NULL);
   assert (input != NULL);
@@ -1046,7 +1047,7 @@ static inline void
 adjust_deltas_batch (network_t *net)
 {
   int l, nu, nl;
-  double error;
+  float error;
 
   assert (net != NULL);
 
@@ -1140,8 +1141,8 @@ net_end_batch (network_t *net)
 
 /*!\brief Make small random changes to the weights of a network.
  * \param net Pointer to a neural network.
- * \param factor doubleing point number.
- * \param range doubleing point number.
+ * \param factor Floating point number.
+ * \param range Floating point number.
  *
  * All weights in the neural network that are in absolute value smaller
  * than range become a random value from the interval [-range,range].
@@ -1149,7 +1150,7 @@ net_end_batch (network_t *net)
  * [1-factor,1+factor].
  */
 void
-net_jolt (network_t *net, double factor, double range)
+net_jolt (network_t *net, float factor, float range)
 {
   int l, nu, nl;
 
@@ -1163,10 +1164,10 @@ net_jolt (network_t *net, double factor, double range)
       for (nl = 0; nl <= net->layer[l - 1].no_of_neurons; nl++) {
         if (fabs (net->layer[l].neuron[nu].weight[nl]) < range) {
           net->layer[l].neuron[nu].weight[nl] =
-            2.0 * range * ((double) random () / RAND_MAX - 0.5);
+            2.0 * range * ((float) random () / RAND_MAX - 0.5);
         } else {
           net->layer[l].neuron[nu].weight[nl] *=
-            1.0 + 2.0 * factor * ((double) random () / RAND_MAX - 0.5);
+            1.0 + 2.0 * factor * ((float) random () / RAND_MAX - 0.5);
         }
       }
     }
@@ -1178,11 +1179,11 @@ net_jolt (network_t *net, double factor, double range)
  * \param layer Integer
  * \param neuron Integer
  * \param number Integer
- * \param range doubleing point number
+ * \param range Floating point number
  */
 void
 net_add_neurons (network_t *net, int layer, int neuron, int number,
-                 double range)
+                 float range)
 {
   int l, nu, nl, new_nu, new_nl, *arglist;
   network_t *new_net, *tmp_net;
