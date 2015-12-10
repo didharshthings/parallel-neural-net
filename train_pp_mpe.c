@@ -13,9 +13,10 @@ distributing dataset and training networks at each node
 #include <mpi.h>
 #include "pprintf.h"
 #include "mpe.h"
+
 #define MAX_LAYERS 10
 
-int ReadFile(char *file_name, int valuesPerLine, int numLines, float* arr){
+int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 	FILE *ifp;
 	int i, j, val;
 	char *mode = "r";
@@ -40,7 +41,7 @@ int ReadFile(char *file_name, int valuesPerLine, int numLines, float* arr){
 
 	return 0;
 }
-void SendInputs(float *input, int trainingInputsCnt, int sendCnt, int worldSize, int tag)
+void SendInputs(double *input, int trainingInputsCnt, int sendCnt, int worldSize, int tag)
 {
 	int i, numToSend = 0, dest = 0;
 	MPI_Request request;
@@ -73,7 +74,7 @@ void SendInputs(float *input, int trainingInputsCnt, int sendCnt, int worldSize,
 		/* send training sources */
 		MPI_Isend(&input[i],
 				sendCnt*numToSend,
-				MPI_FLOAT,
+				MPI_DOUBLE,
 				dest,
 				tag,
 				MPI_COMM_WORLD,
@@ -96,33 +97,20 @@ int main (int argc, char** argv)
 
   int num_neurons;
   int rank, np;
-  float input[8];
-  float target[4];
-  float output[4];
-  float error;
+  double input[8];
+  double target[4];
+  double output[4];
+  double error;
 
 
   MPI_Init(&argc, &argv);
-  MPE_Init_log();
-
+	MPE_Init_log();
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
   MPI_Comm_size(MPI_COMM_WORLD, &np);
 
-  int start_a = MPE_Log_get_event_number();
-  int end_a = MPE_Log_get_event_number();
-  int start_b = MPE_Log_get_event_number();
-  int end_b = MPE_Log_get_event_number();
-  int start_c = MPE_Log_get_event_number();
-  int end_c = MPE_Log_get_event_number();
-  int start_d = MPE_Log_get_event_number();
-  int end_d = MPE_Log_get_event_number();
-  int start_e = MPE_Log_get_event_number();
-  int end_e = MPE_Log_get_event_number();
-
-
   //MPI Derived data type
   MPI_Datatype global_weights;
-  MPI_Type_contiguous(27,MPI_FLOAT,&global_weights);
+  MPI_Type_contiguous(27,MPI_DOUBLE,&global_weights);
   MPI_Type_commit(&global_weights);
 
   // Initialize the pretty printer
@@ -132,14 +120,24 @@ int main (int argc, char** argv)
   int num_inputs = 2;
   int num_outputs = 1;
 
+	int a_start = MPE_Log_get_event_number();
+  int a_end = MPE_Log_get_event_number();
+  int b_start = MPE_Log_get_event_number();
+  int b_end = MPE_Log_get_event_number();
+  int c_start = MPE_Log_get_event_number();
+  int c_end = MPE_Log_get_event_number();
+  int d_start = MPE_Log_get_event_number();
+  int d_end = MPE_Log_get_event_number();
+  int e_start = MPE_Log_get_event_number();
+  int e_end = MPE_Log_get_event_number();
 
 // file handling stuff
-  float* trainingSamples;
-  float* trainingTargets;
+  double* trainingSamples;
+  double* trainingTargets;
   int numTrainingSamples, numTestSamples;
 
-  trainingSamples = (float *) calloc(num_inputs * 2, sizeof(float));
-	trainingTargets = (float *) calloc(num_outputs * 1, sizeof(float));
+  trainingSamples = (double *) calloc(num_inputs * 2, sizeof(double));
+	trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
   char* trainingFile, * trainingTargetFile, * testingFile;
 
   #define inputs(i) (trainingSamples + i * num_inputs)
@@ -154,20 +152,29 @@ int main (int argc, char** argv)
 
   if(rank == 0)
   {
+		MPE_Describe_stage(a_start,a_end,"a","red");
+	 MPE_Describe_stage(b_start,b_end,"b","green");
+	 MPE_Describe_stage(c_start,c_end,"c", "gray");
+	 MPE_Describe_stage(d_start,d_end,"d","blue");
+	 MPE_Describe_stage(e_start,e_end,"e","yellow");
+
+	 MPE_Log_event(a_start,0,"start a");
     ReadFile(trainingFile, num_inputs, 4, trainingSamples);
     ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
 
     SendInputs(&trainingSamples[0], 4, num_inputs, np, 11);
 
     SendInputs(&trainingTargets[0], 4, num_outputs, np, 22);
+		MPE_Log_event(a_end,0,"end a");
   }
   else
   {
     numTrainingSamples = 1;
-    MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs),MPI_FLOAT,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPE_Log_event(a_start,0,"start a");
+    MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-    MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs),MPI_FLOAT,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-
+    MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPE_Log_event(a_end,0,"end a");
     }
 
 //Training
@@ -181,74 +188,93 @@ int main (int argc, char** argv)
    global_layers[2] = 1;
    global_net = net_allocate_l(3,global_layers);
 
-
-   float* weights = (float *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(float));
+	 //net_print(global_net);
+   double* weights = (double *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(double));
 
    int i,j,k;
 
    for(i = 1 ;i< global_net->no_of_layers;i++)
        for(j=0;j< global_net->layer[i].no_of_neurons;j++)
            for(k=0;k <= global_net->layer[i-1].no_of_neurons;k++)
-              weights[getIndex3d(i,j,k,3,3)] = global_net->layer[i].neuron[j].weight[k];
-   //pprintf("global net\n");
-   //net_print(global_net);
+              {
+								weights[getIndex3d(i,j,k,3,3)] = global_net->layer[i].neuron[j].weight[k];
+							//	pprintf("%f \n",global_net->layer[i].neuron[j].weight[k]);
+							}
+	 //pprintf("initial net\n");
+	 //net_print(global_net);
    int global_epoch = 0;
    int l;
-   MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
-   pprintf("initial broadcast done\n");
+	 MPE_Log_event(b_start,0,"start b");
+	 MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
+   //pprintf("initial broadcast done\n");
    MPI_Request reqs[np-1];
    double start_time, end_time;
    start_time = MPI_Wtime();
-   while(global_epoch <= 100)
+	 int count = 0;
+	 while(global_epoch <= 100 )
    {
-    for(l=1;l<np;l++)
+		 MPE_Log_event(d_start,0,"syncing");
+	  for(l=1;l<np;l++)
     {
-   float* temp_weights = (float *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(float));
-    //pprintf("recieveing from %d \n",l);
+   double* temp_weights = (double *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(double));
+
     MPI_Recv(temp_weights,1, global_weights,l,0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-    for(i = 1 ;i< global_net->no_of_layers;i++)
-        for(j=0;j< global_net->layer[i].no_of_neurons;j++)
-            for(k=0;k <= global_net->layer[i-1].no_of_neurons;k++)
-            {
-              if(temp_weights[getIndex3d(i,j,k,3,3)] != 0)
-              {
-                global_net->layer[i].neuron[j].weight[k] *= temp_weights[getIndex3d(i,j,k,3,3)];
-              }
-            }
-    }
+
+		count = 0;
+
+		for(i = 1 ;i< global_net->no_of_layers;i++)
+		{
+			for(j=0;j< global_net->layer[i].no_of_neurons;j++)
+			{
+				for(k=0;k <= global_net->layer[i-1].no_of_neurons;k++)
+				{
+					count++;
+						global_net->layer[i].neuron[j].weight[k] += temp_weights[getIndex3d(i,j,k,3,3)];
+						//pprintf("\n %f *\t",global_net->layer[i].neuron[j].weight[k]);
+				}
+			}
+		}
+	}
+	MPE_Log_event(d_end,0,"syncing end");
+MPE_Log_event(c_start,0,"computation");
+	for(i = 1 ;i< global_net->no_of_layers;i++)
+	{
+		for(j=0;j< global_net->layer[i].no_of_neurons;j++)
+		{
+			for(k=0;k <= global_net->layer[i-1].no_of_neurons;k++)
+			{
+					global_net->layer[i].neuron[j].weight[k] /= count;
+			}
+		}
+	}
+	MPE_Log_event(d_start,0,"computation end");
    // MPI_Waitall(np-1,reqs,MPI_STATUS_IGNORE);
     //figure out how to add different weights
     //pprintf("waiting done for epoch %d\n",global_epoch);
+		MPE_Log_event(d_start,0,"syncing");
     MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
+		MPE_Log_event(d_end,0,"syncing end");
     //pprintf("broadcasting new weights\n");
     global_epoch++;
    }
-   end_time = MPI_Wtime();
-   pprintf("time - taken %f\n",end_time-start_time);
-   net_print(global_net);
+	 end_time = MPI_Wtime();
+	 MPE_Log_event(b_end,0,"end b");
+	 pprintf("time - taken %f\n",end_time-start_time);
+   //net_print(global_net);
 
    //test data
    input[0] = 0.0; input[1] = 0.0;
-   //use MPI_TYPE create sub array to split input
 
    net_compute(global_net,inputs(i),output);
 
    for(j=0;j<1;j++)
    {
-   printf("rank[%d] -  output[%d] - %f\n",rank, j,output[j]);
+   //printf("rank[%d] -  output[%d] - %f\n",rank, j,output[j]);
    }
+
   }
   else
   {
-    input[0] = 1.0; input[1] = 1.0;
-    target[0] = 0.0;
-    input[2] = 1.0; input[3] = 0.0;
-    target[1]= 1.0;
-    input[4] = 0.0; input[5] = 1.0;
-    target[2] = 1.0;
-    input[6] = 0.0; input[7] = 0.0;
-    target[3] = 0.0;
-    //use MPI_TYPE create sub array to split input
 
     int layers[3];
     layers[0] = 2;
@@ -256,17 +282,18 @@ int main (int argc, char** argv)
     layers[2] = 1;
 
 
-    float total_error = 0;
+    double total_error = 0;
     int epoch = 0;
     network_t *local_net;
     local_net = net_allocate_l(3,layers);
-   float* local_weights = (float *) malloc((local_net->no_of_layers) * local_net->layer[1].no_of_neurons * local_net->layer[1].no_of_neurons * sizeof(float));
+   double* local_weights = (double *) malloc((local_net->no_of_layers) * local_net->layer[1].no_of_neurons * local_net->layer[1].no_of_neurons * sizeof(double));
     int i;
     int j;
     int k;
     int l, nu, nl;
 
     int error;
+		MPE_Log_event(b_start,0,"training start");
     MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
     //pprintf("initial broadcast received- \n ");
       for(i = 1 ;i< local_net->no_of_layers;i++)
@@ -275,11 +302,12 @@ int main (int argc, char** argv)
               local_net->layer[i].neuron[j].weight[k] = local_weights[getIndex3d(i,j,k,3,3)];
 
     i = rank-1; //select input
-    while((epoch <= 100) && (total_error >= 0.0))
+    while((epoch <= 100))
     {
         //sync
         //pprintf("starting training\n");
         //net_print(local_net);
+				MPE_Log_event(c_start,0,"computation");
         net_compute(local_net,inputs(i),output);
         for(j=0;j<4;j++)
         {
@@ -287,22 +315,44 @@ int main (int argc, char** argv)
         }
         error = net_compute_output_error(local_net, targets(i));
         net_train(local_net);
-        //pprintf("epoch - %i \n",epoch);
 
+				if (epoch == 0)
+				{
+					total_error = error;
+				}
+				else
+				{
+					total_error = 0.9 * total_error + 0.1 * error;
+				}
+			  //pprintf("epoch - %i \n",epoch);
+				MPE_Log_event(c_end,0,"computation end");
         //pprintf("sending from rank %d\n",rank);
+				for(i = 1 ;i< local_net->no_of_layers;i++)
+				 for(j=0;j< local_net->layer[i].no_of_neurons;j++)
+						 for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
+								{
+									local_weights[getIndex3d(i,j,k,3,3)]=local_net->layer[i].neuron[j].weight[k];
+									//pprintf("local_weights after training %f \n",local_net->layer[i].neuron[j].weight[k]);
+								}
+								MPE_Log_event(d_start,0,"syncing");
         MPI_Send(local_weights,1, global_weights,0,0, MPI_COMM_WORLD);//write custom mpi reduce
-        //pprintf("sending from rank - %d, epoch - %d\n",rank,epoch);
-        MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
+
+				MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
         for(i = 1 ;i< local_net->no_of_layers;i++)
             for(j=0;j< local_net->layer[i].no_of_neurons;j++)
                 for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
-                    local_net->layer[i].neuron[j].weight[k] = local_weights[getIndex3d(i,j,k,3,3)];
+                    {
+											local_net->layer[i].neuron[j].weight[k] = local_weights[getIndex3d(i,j,k,3,3)];
+											//pprintf("local_weights after sync %f \n",local_net->layer[i].neuron[j].weight[k]);
+										}
+											MPE_Log_event(d_end,0,"syncing end");
+
         epoch ++;
 
     }
-
+		MPE_Log_event(b_end,0,"training end");
  }
   //net_free(local_net);
   MPI_Finalize();
-
+	return 0;
 }

@@ -171,7 +171,7 @@ int main (int argc, char** argv)
    global_layers[2] = 1;
    global_net = net_allocate_l(3,global_layers);
 
-	 net_print(global_net);
+	 //net_print(global_net);
    double* weights = (double *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(double));
 
    int i,j,k;
