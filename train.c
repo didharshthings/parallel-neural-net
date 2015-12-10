@@ -19,10 +19,10 @@ int main (int argc, char** argv)
   int num_pairs;
   int num_inputs;
   int num_outputs;
-  float input[8];
-  float target[4];
-  float output[4];
-  float error;
+  double input[8];
+  double target[4];
+  double output[4];
+  double error;
   int i,j;
   int num_neurons[3];
 
@@ -52,7 +52,7 @@ int main (int argc, char** argv)
 
 // training
   int epoch = 0;
-  float total_error = 0;
+  double total_error = 0;
   while((epoch <= 100) && (total_error >= 0.0))
   {
     i = rand () % no_of_pairs ;
