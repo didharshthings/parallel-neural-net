@@ -142,12 +142,12 @@ int main (int argc, char** argv)
 
   if(rank == 0)
   {
-    ReadFile(trainingFile, num_inputs, 8, trainingSamples);
-    ReadFile(trainingTargetFile, num_outputs, 8, trainingTargets);
+    ReadFile(trainingFile, num_inputs, 24, trainingSamples);
+    ReadFile(trainingTargetFile, num_outputs, 24, trainingTargets);
 
-    SendInputs(&trainingSamples[0], 8, num_inputs, np, 11);
+    SendInputs(&trainingSamples[0], 24, num_inputs, np, 11);
 
-    SendInputs(&trainingTargets[0], 8, num_outputs, np, 22);
+    SendInputs(&trainingTargets[0], 24, num_outputs, np, 22);
 
   }
   else
@@ -158,7 +158,7 @@ int main (int argc, char** argv)
 
 		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 	  MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		pprintf("recieved training data by rank %d \n",rank);
+		//pprintf("recieved training data by rank %d \n",rank);
 	}
 
 
@@ -234,7 +234,7 @@ int main (int argc, char** argv)
     //pprintf("waiting done for epoch %d\n",global_epoch);
 
     MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
-    pprintf("broadcasting new weights\n");
+    //pprintf("broadcasting new weights\n");
     global_epoch++;
    }
    end_time = MPI_Wtime();
@@ -274,7 +274,7 @@ int main (int argc, char** argv)
     while((epoch <= 10))
     {
         //sync
-        pprintf("starting training\n");
+        //pprintf("starting training\n");
         //net_print(local_net);
         net_compute(local_net,inputs(i),output);
 
@@ -289,9 +289,9 @@ int main (int argc, char** argv)
 				{
 					total_error = 0.9 * total_error + 0.1 * error;
 				}
-			  pprintf("epoch - %i \n",epoch);
+			  //pprintf("epoch - %i \n",epoch);
 
-       pprintf("sending from rank %d\n",rank);
+       //pprintf("sending from rank %d\n",rank);
 				for(i = 1 ;i< local_net->no_of_layers;i++)
 				 for(j=0;j< local_net->layer[i].no_of_neurons;j++)
 						 for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
