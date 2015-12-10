@@ -13,6 +13,21 @@ Author - Siddharth Singh
 #define MAX_SIZE 10000
 #define MAX_LAYERS 10
 
+double calctime(struct timeval start, struct timeval end)
+{
+  double time = 0.0;
+
+  //struct timeval {
+  //   time_t      tv_sec;     /* seconds */
+  //   suseconds_t tv_usec;    /* microseconds */
+  //};
+  time = end.tv_usec - start.tv_usec;
+  time = time/1000000;
+  time += end.tv_sec - start.tv_sec;
+
+  return time;
+}
+
 int main (int argc, char** argv)
 {
   network_t *net;
@@ -25,6 +40,10 @@ int main (int argc, char** argv)
   double error;
   int i,j;
   int num_neurons[3];
+  double time;
+  struct timeval start;
+  struct timeval end;
+
 
   num_neurons[0] = 2;
   num_neurons[1] = 3;
@@ -53,6 +72,8 @@ int main (int argc, char** argv)
 // training
   int epoch = 0;
   double total_error = 0;
+
+  gettimeofday(&start, NULL);
   while((epoch <= 100) && (total_error >= 0.0))
   {
     i = rand () % no_of_pairs ;
@@ -71,6 +92,11 @@ int main (int argc, char** argv)
     //net_print(net);
     epoch++;
   }
+  gettimeofday(&end, NULL);
+
+ // calc & print results
+ time = calctime(start, end);
+printf("%lf(s) \n",time);
   //test data
   input[0] = 0.0; input[1] = 0.0;
   //use MPI_TYPE create sub array to split input
