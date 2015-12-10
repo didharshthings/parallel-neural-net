@@ -183,12 +183,12 @@ int main (int argc, char** argv)
 								weights[getIndex3d(i,j,k,3,3)] = global_net->layer[i].neuron[j].weight[k];
 							//	pprintf("%f \n",global_net->layer[i].neuron[j].weight[k]);
 							}
-	 pprintf("initial net\n");
-	 net_print(global_net);
+	 //pprintf("initial net\n");
+	 //net_print(global_net);
    int global_epoch = 0;
    int l;
    MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
-   pprintf("initial broadcast done\n");
+   //pprintf("initial broadcast done\n");
    MPI_Request reqs[np-1];
    double start_time, end_time;
    start_time = MPI_Wtime();
@@ -212,10 +212,6 @@ int main (int argc, char** argv)
 					count++;
 						global_net->layer[i].neuron[j].weight[k] += temp_weights[getIndex3d(i,j,k,3,3)];
 						//pprintf("\n %f *\t",global_net->layer[i].neuron[j].weight[k]);
-						if (global_net->layer[i].neuron[j].weight[k] == 0)
-						{
-							printf("%d \n" ,global_epoch);
-						}
 				}
 			}
 		}
@@ -228,10 +224,6 @@ int main (int argc, char** argv)
 			for(k=0;k <= global_net->layer[i-1].no_of_neurons;k++)
 			{
 					global_net->layer[i].neuron[j].weight[k] /= count;
-					//if (global_net->layer[i].neuron[j].weight[k] == 0)
-					//{
-						//pprintf("\n epoch - %d %f \t",global_epoch,global_net->layer[i].neuron[j].weight[k]);
-					//}
 			}
 		}
 	}
@@ -245,7 +237,7 @@ int main (int argc, char** argv)
    }
    end_time = MPI_Wtime();
    pprintf("time - taken %f\n",end_time-start_time);
-   net_print(global_net);
+   //net_print(global_net);
 
    //test data
    input[0] = 0.0; input[1] = 0.0;
