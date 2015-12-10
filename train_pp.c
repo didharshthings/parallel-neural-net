@@ -246,7 +246,7 @@ int main (int argc, char** argv)
 
    for(j=0;j<1;j++)
    {
-   printf("rank[%d] -  output[%d] - %f\n",rank, j,output[j]);
+   //printf("rank[%d] -  output[%d] - %f\n",rank, j,output[j]);
    }
 
   }
