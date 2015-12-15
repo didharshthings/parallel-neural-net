@@ -71,7 +71,7 @@ void SendInputs(double *input, int trainingInputsCnt, int sendCnt, int worldSize
 		{
 			numToSend = (trainingInputsCnt/(worldSize-1));
 		}
-		pprintf(" sending to rank-%d sendCnt-%d num to send %d i - %d \n",dest,sendCnt,numToSend,i);
+		//pprintf(" sending to rank-%d sendCnt-%d num to send %d i - %d \n",dest,sendCnt,numToSend,i);
 		/* send training sources */
 		MPI_Isend(&input[i],
 				sendCnt*numToSend,
@@ -145,21 +145,15 @@ int main (int argc, char** argv)
   trainingFile = "xor.txt";
   trainingTargetFile = "xor_targets.txt";
 
+	int sample_mult, target_mult;
+	sample_mult = 50 * sample_size/(np-1);
+	target_mult = 1 * sample_size/(np-1);
 
   if(rank == 0)
   {
 
-    ReadFile(trainingFile, num_inputs+50, sample_size, trainingSamples);
-    ReadFile(trainingTargetFile, num_outputs+1, sample_size, trainingTargets);
-		pprintf("%f \n",trainingSamples[0]);
-		pprintf("%f \n",trainingSamples[50]);
-		pprintf("%f \n",trainingSamples[100]);
-		pprintf("%f \n",trainingSamples[150]);
-		pprintf("%f \n",trainingSamples[200]);
-		pprintf("%f \n",trainingSamples[250]);
-		pprintf("%f \n",trainingSamples[300]);
-		pprintf("%f \n",trainingSamples[350]);
-
+    ReadFile(trainingFile, num_inputs+ sample_mult, sample_size, trainingSamples);
+    ReadFile(trainingTargetFile, num_outputs+ target_mult, sample_size, trainingTargets);
 
     SendInputs(&trainingSamples[0], sample_size, num_inputs, np, 11);
 
@@ -171,9 +165,9 @@ int main (int argc, char** argv)
 
 		numTrainingSamples  = sample_size/(np-1);
 
-		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs+50),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs+sample_mult),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-		MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs+1),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs+target_mult),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 		//pprintf("recieved training data by rank %d \n",rank);
 	}
 
@@ -294,9 +288,9 @@ int main (int argc, char** argv)
 								//sync
 								//pprintf("starting training\n");
 								//net_print(local_net);
-
-								pprintf("%f \n",trainingSamples[sample]);
-								net_compute(local_net,inputs(i),output);
+								//pprintf("sample %d \n",sample);
+								//pprintf("%f \n",trainingSamples[sample]);
+								net_compute(local_net,inputs(sample),output);
 
 								error = net_compute_output_error(local_net, targets(i));
 								net_train(local_net);
@@ -331,7 +325,7 @@ int main (int argc, char** argv)
 								}
 
         epoch ++;
-        sample += 50;
+        sample += 50*sample_size/(np-1);
     }
 		//net_free(local_net);
 		//free(local_weights);
