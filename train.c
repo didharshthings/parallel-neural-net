@@ -144,7 +144,7 @@ printf("%lf(s) \n",time);
   //test data
   input[0] = 0.0; input[1] = 0.0;
   //use MPI_TYPE create sub array to split input
-	net_print(net);
+	//net_print(net);
 
 // net_print(net);
   //net_compute(net,inputs(i),output);
