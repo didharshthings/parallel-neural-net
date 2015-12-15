@@ -170,13 +170,13 @@ int main (int argc, char** argv)
 
 	if (rank == 0)
 	{
-		MPE_Describe_state(event1a, event1b, "event 1", "red");
-		MPE_Describe_state(event2a, event2b, "event 2",   "blue");
-		MPE_Describe_state(event3a, event3b, "event 3",    "green");
-		MPE_Describe_state(event4a, event4b, "event 4",      "yellow");
-		MPE_Describe_state(event5a, event5b, "event 5",      "gray");
-		MPE_Describe_state(event6a, event6b, "event 6",      "pink");
-		MPE_Describe_state(event7a, event7b, "event 7",      "white");
+		MPE_Describe_state(event1a, event1b, "reading inputs", "red");
+		MPE_Describe_state(event2a, event2b, "training",   "blue");
+		MPE_Describe_state(event3a, event3b, "inital broadcast",    "green");
+		MPE_Describe_state(event4a, event4b, "recieving weights",      "yellow");
+		MPE_Describe_state(event5a, event5b, "computation",      "gray");
+		MPE_Describe_state(event6a, event6b, "sending new weights",      "pink");
+		MPE_Describe_state(event7a, event7b, "adjusting new weights",      "white");
 	}
 
   if(rank == 0)
