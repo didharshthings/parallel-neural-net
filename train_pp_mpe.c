@@ -104,6 +104,9 @@ int main (int argc, char** argv)
   double target[4];
   double output[4];
   double error;
+	int event1a, event1b, event2a, event2b,
+        event3a, event3b, event4a, event4b;
+  
 
   MPI_Init(&argc, &argv);
   MPI_Comm_rank(MPI_COMM_WORLD, &rank);
