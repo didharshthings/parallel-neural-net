@@ -167,7 +167,7 @@ int main (int argc, char** argv)
 		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs+next_sample),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
 		MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs+next_target),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		//pprintf("recieved training data by rank %d \n",rank);
+		pprintf("recieved training data by rank %d \n",rank);
 	}
 
 
@@ -194,12 +194,12 @@ int main (int argc, char** argv)
 								weights[getIndex3d(i,j,k,4,derived_type_size)] = global_net->layer[i].neuron[j].weight[k];
 								//pprintf("%f \n",global_net->layer[i].neuron[j].weight[k]);
 							}
-	 //pprintf("initial net\n");
+	 pprintf("initial net\n");
 	 //net_print(global_net);
    int global_epoch = 0;
    int l;
    MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
-   //pprintf("initial broadcast done\n");
+   pprintf("initial broadcast done\n");
    MPI_Request reqs[np-1];
    double start_time, end_time;
    start_time = MPI_Wtime();
@@ -211,7 +211,7 @@ int main (int argc, char** argv)
    double* temp_weights = (double *) malloc((global_net->no_of_layers) * global_net->layer[1].no_of_neurons * global_net->layer[1].no_of_neurons * sizeof(double));
 
     MPI_Recv(temp_weights,1, global_weights,l,0, MPI_COMM_WORLD,MPI_STATUS_IGNORE);
-		//pprintf("recieved from rank %d\n",l);
+		pprintf("recieved from rank %d\n",l);
 		count = 0;
 
 		for(i = 1 ;i< global_net->no_of_layers;i++)
@@ -233,7 +233,7 @@ int main (int argc, char** argv)
     //pprintf("waiting done for epoch %d\n",global_epoch);
 
     MPI_Bcast(weights,1,global_weights,0,MPI_COMM_WORLD);
-    //pprintf("broadcasting new weights\n");
+    pprintf("broadcasting new weights\n");
     global_epoch++;
    }
    end_time = MPI_Wtime();
@@ -265,7 +265,7 @@ int main (int argc, char** argv)
 
     int error;
     MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
-    //pprintf("initial broadcast received- \n ");
+    pprintf("initial broadcast received- \n ");
       for(i = 1 ;i< local_net->no_of_layers;i++)
        for(j=0;j< local_net->layer[i].no_of_neurons;j++)
            for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
@@ -276,10 +276,10 @@ int main (int argc, char** argv)
 							while((epoch <= total_epochs))
 							{
 								//sync
-								//pprintf("starting training\n");
+								pprintf("starting training\n");
 								//net_print(local_net);
 
-								//pprintf("%f \n",trainingSamples[sample]);
+								pprintf("%f \n",trainingSamples[sample]);
 
 								net_compute(local_net,inputs(sample),output);
 
