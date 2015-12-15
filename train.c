@@ -68,19 +68,26 @@ int main (int argc, char** argv)
   struct timeval end;
 
 
-  num_neurons[0] = 4;
-  num_neurons[1] = 3;
-	num_neurons[2] = 1;
+
+int total_epochs;
+total_epochs = atoi(argv[3]);
+int sample_size;
+sample_size = atoi(argv[1]);
+int derived_type_size;
+derived_type_size = atoi(argv[2]);
+
+num_neurons[0] = 50;
+num_neurons[1] = derived_type_size;
+num_neurons[2] = 1;
 
 
-  net = net_allocate_l(6,num_neurons);
-  //printf("initial net \n");
-  //net_print(net);
-
+net = net_allocate_l(3,num_neurons);
+//printf("initial net \n");
+//net_print(net);
 
 
 //reading from file
-int num_inputs = 4;
+int num_inputs = 50;
 int num_outputs = 1;
 
 num_pairs = num_inputs/num_outputs;
@@ -90,8 +97,8 @@ double* trainingSamples;
 double* trainingTargets;
 int numTrainingSamples, numTestSamples;
 
-trainingSamples = (double *) calloc(num_inputs * 4, sizeof(double));
-trainingTargets = (double *) calloc(num_outputs * 1, sizeof(double));
+trainingSamples = (double *) calloc(num_inputs * sample_size, sizeof(double));
+trainingTargets = (double *) calloc(num_outputs * sample_size, sizeof(double));
 char* trainingFile, * trainingTargetFile, * testingFile;
 
 #define inputs(i) (trainingSamples + i * num_inputs)
@@ -103,15 +110,15 @@ trainingFile = "xor.txt";
 trainingTargetFile = "xor_targets.txt";
 
 
-ReadFile(trainingFile, num_inputs, 4, trainingSamples);
-ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
+ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
+ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
 
 // training
   int epoch = 0;
   double total_error = 0;
 
   gettimeofday(&start, NULL);
-  while((epoch <= 10))
+  while((epoch <= total_epochs))
   {
     i = rand () % num_pairs ;
     net_compute(net, inputs(i), output);
@@ -126,7 +133,7 @@ ReadFile(trainingTargetFile, num_outputs, 4, trainingTargets);
     {
       total_error = 0.9 * total_error + 0.1 * error;
     }
-    net_print(net);
+    //net_print(net);
     epoch++;
   }
   gettimeofday(&end, NULL);
@@ -137,14 +144,15 @@ printf("%lf(s) \n",time);
   //test data
   input[0] = 0.0; input[1] = 0.0;
   //use MPI_TYPE create sub array to split input
+	net_print(net);
 
- net_print(net);
-  net_compute(net,inputs(i),output);
+// net_print(net);
+  //net_compute(net,inputs(i),output);
 
-  for(j=0;j<1;j++)
-  {
-  printf("output - %f\n",output[j]);
-  }
+  //for(j=0;j<1;j++)
+  //{
+  //printf("output - %f\n",output[j]);
+  //}
   net_free(net);
 }
 
