@@ -14,34 +14,50 @@ distributing dataset and training networks at each node
 #include "nn.h"
 #include <mpi.h>
 #include "pprintf.h"
+
+/* MPE performance tracing ships with MPICH, not with Open MPI. Compile the
+ * tracing in only when HAVE_MPE is defined and mpe.h is available; otherwise
+ * the MPE_* calls below expand to no-ops so the program still builds and runs
+ * untraced. */
+#ifdef HAVE_MPE
 #include <mpe.h>
+#else
+#define MPE_Init_log()                        ((void) 0)
+#define MPE_Finish_log(name)                  ((void) 0)
+#define MPE_Log_get_event_number()            (0)
+#define MPE_Describe_state(a, b, c, d)        ((void) 0)
+#define MPE_Log_event(e, x, s)                ((void) 0)
+#define MPE_Start_log()                       ((void) 0)
+#define MPE_Stop_log()                        ((void) 0)
+#endif
 
 
 #define MAX_LAYERS 10
 
-void ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
+/* Read valuesPerLine * numLines doubles from file_name into arr.
+ * Returns the number of values read, or -1 if the file could not be opened.
+ * The NULL check previously fell through and dereferenced ifp. */
+int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 	FILE *ifp;
-	int i, j;
-	double val;
+	int i;
+	int wanted = valuesPerLine * numLines;
 	char *mode = "r";
 	ifp = fopen(file_name, mode);
 
 	if (ifp == NULL) {
-
+		return -1;
 	}
 
 	i = 0;
-	while((!feof(ifp)) && (i < (valuesPerLine*numLines)))
+	while((i < wanted) && (fscanf(ifp, "%lf", &arr[i]) == 1))
 	{
-		fscanf(ifp, "%lf ", &val);
-
-		arr[i] = val;
-
 		i++;
 	}
 
 	// closing file
 	fclose(ifp);
+
+	return i;
 }
 void SendInputs(double *input, int trainingInputsCnt, int sendCnt, int worldSize, int tag)
 {
@@ -118,10 +134,18 @@ int main (int argc, char** argv)
 	derived_type_size = atoi(argv[2]);
 	int total_epochs;
 	total_epochs = atoi(argv[3]);
+	/* The weight buffers are allocated as
+	 *   no_of_layers * hidden_layer_width * hidden_layer_width
+	 * doubles and every rank bcasts/sends the whole array, so the derived
+	 * datatype must span exactly that many doubles.  hidden_layer_width is
+	 * derived_type_size after it has been widened below. */
+  derived_type_size += 50 + 1 +1;
+  int derived_total;
+  derived_total = 3 * derived_type_size * derived_type_size;
+
   //MPI Derived data type
   MPI_Datatype global_weights;
-	derived_type_size += 50 + 1 +1;
-  MPI_Type_contiguous(derived_type_size,MPI_DOUBLE,&global_weights);
+  MPI_Type_contiguous(derived_total, MPI_DOUBLE, &global_weights);
   MPI_Type_commit(&global_weights);
 	MPE_Init_log();
 
@@ -183,8 +207,10 @@ int main (int argc, char** argv)
   {
 	MPE_Log_event(event1a, 0, "reading initial file");
 
-    ReadFile(trainingFile, num_inputs+50, sample_size, trainingSamples);
-    ReadFile(trainingTargetFile, num_outputs+1, sample_size, trainingTargets);
+    /* One sample is exactly num_inputs / num_outputs values; the buffers hold
+     * sample_size samples. Reading extra columns per line overran them. */
+    ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
+    ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
 
     SendInputs(&trainingSamples[0], sample_size, num_inputs, np, 11);
 
@@ -199,9 +225,9 @@ int main (int argc, char** argv)
 
 		numTrainingSamples  = sample_size/(np-1);
 
-		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs+50),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingSamples[0], num_inputs * sample_size, MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-		MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs+1),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingTargets[0], num_outputs * sample_size, MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 		//pprintf("recieved training data by rank %d \n",rank);
 		MPE_Log_event(event1b, 0, "reading initial file");
 
@@ -322,7 +348,7 @@ int main (int argc, char** argv)
     int k;
     int l, nu, nl;
 
-    int error;
+    double error;
 		MPE_Log_event(event3a, 0, "initial broadcast");
 
     MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
@@ -345,9 +371,11 @@ int main (int argc, char** argv)
 
 								//pprintf("%f \n",trainingSamples[sample]);
 								MPE_Log_event(event5a, 0, "computation");
-								net_compute(local_net,inputs(i),output);
+								/* Select the training sample, not the layer
+								 * counter i, which is left at no_of_layers. */
+								net_compute(local_net,inputs(sample),output);
 
-								error = net_compute_output_error(local_net, targets(i));
+								error = net_compute_output_error(local_net, targets(sample));
 								net_train(local_net);
 
 								if (epoch == 0)
@@ -365,7 +393,7 @@ int main (int argc, char** argv)
 								for(j=0;j< local_net->layer[i].no_of_neurons;j++)
 								for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
 								{
-									local_weights[getIndex3d(i,j,k,4,3)]=local_net->layer[i].neuron[j].weight[k];
+									local_weights[getIndex3d(i,j,k,4,derived_type_size)]=local_net->layer[i].neuron[j].weight[k];
 									//pprintf("local_weights after training %f \n",local_net->layer[i].neuron[j].weight[k]);
 								}
 								MPE_Log_event(event5b, 0, "computation");
@@ -388,12 +416,16 @@ int main (int argc, char** argv)
 								MPE_Log_event(event7b, 0, "setting new weights");
 
         epoch ++;
-        sample += 50;
+        /* sample is a sample index; advance one sample at a time and wrap. */
+        sample++;
+        if (sample >= numTrainingSamples) {
+          sample = 0;
+        }
     }
 		MPE_Log_event(event2b, 0, "training");
 
-		//net_free(local_net);
-		//free(local_weights);
+		net_free(local_net);
+		free(local_weights);
 	 }
 
 	 //free(trainingSamples);
