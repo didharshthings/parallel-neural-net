@@ -7,36 +7,45 @@ Author - Siddharth Singh
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <sys/time.h>
 #include "nn.h"
 
 #define MAX_FILENAME_LENGTH 100
 #define MAX_SIZE 10000
 #define MAX_LAYERS 10
 
+/* Number of floating point values to read for one sample. Must match the
+ * first dimension of the network's input layer. */
+#define NUM_INPUTS 50
+#define NUM_OUTPUTS 1
+
+/* Read valuesPerLine * numLines doubles from file_name into arr.
+ * Returns the number of values actually read, or -1 if the file could not
+ * be opened. Callers must check the return value: a short read means the
+ * file held fewer samples than requested, and training on the untouched
+ * tail of the buffer would use zeros. */
 int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 	FILE *ifp;
-	int i, j, val;
+	int i;
 	char *mode = "r";
+	int wanted = valuesPerLine * numLines;
+
 	ifp = fopen(file_name, mode);
 
 	if (ifp == NULL) {
-		return 1;
+		return -1;
 	}
 
 	i = 0;
-	while((!feof(ifp)) && (i < (valuesPerLine*numLines)))
+	while((i < wanted) && (fscanf(ifp, "%lf", &arr[i]) == 1))
 	{
-		fscanf(ifp, "%d ", &val);
-
-		arr[i] = val;
-
 		i++;
 	}
 
 	// closing file
 	fclose(ifp);
 
-	return 0;
+	return i;
 }
 double calctime(struct timeval start, struct timeval end)
 {
@@ -61,13 +70,18 @@ int main (int argc, char** argv)
   double target[4];
   double output[4];
   double error;
-  int i,j;
+  int i;
   int num_neurons[3];
   double time;
   struct timeval start;
   struct timeval end;
+  int samples_read;
+  int targets_read;
 
-
+  if (argc < 4) {
+    fprintf(stderr, "usage: %s <sample_size> <hidden_neurons> <total_epochs>\n", argv[0]);
+    return 1;
+  }
 
 int total_epochs;
 total_epochs = atoi(argv[3]);
@@ -76,7 +90,12 @@ sample_size = atoi(argv[1]);
 int derived_type_size;
 derived_type_size = atoi(argv[2]);
 
-num_neurons[0] = 50;
+if (sample_size <= 0 || derived_type_size <= 0 || total_epochs < 0) {
+  fprintf(stderr, "sample_size, hidden_neurons and total_epochs must be positive\n");
+  return 1;
+}
+
+num_neurons[0] = NUM_INPUTS;
 num_neurons[1] = derived_type_size;
 num_neurons[2] = 1;
 
@@ -87,19 +106,21 @@ net = net_allocate_l(3,num_neurons);
 
 
 //reading from file
-int num_inputs = 50;
-int num_outputs = 1;
-
-num_pairs = num_inputs/num_outputs;
+int num_inputs = NUM_INPUTS;
+int num_outputs = NUM_OUTPUTS;
 
 // file handling stuff
 double* trainingSamples;
 double* trainingTargets;
-int numTrainingSamples, numTestSamples;
 
 trainingSamples = (double *) calloc(num_inputs * sample_size, sizeof(double));
 trainingTargets = (double *) calloc(num_outputs * sample_size, sizeof(double));
-char* trainingFile, * trainingTargetFile, * testingFile;
+if (trainingSamples == NULL || trainingTargets == NULL) {
+  fprintf(stderr, "out of memory allocating training buffers\n");
+  net_free(net);
+  return 1;
+}
+char* trainingFile, * trainingTargetFile;
 
 #define inputs(i) (trainingSamples + i * num_inputs)
 #define targets(i) (trainingTargets + i* num_outputs)
@@ -110,8 +131,34 @@ trainingFile = "xor.txt";
 trainingTargetFile = "xor_targets.txt";
 
 
-ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
-ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
+samples_read = ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
+targets_read = ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
+
+if (samples_read < 0 || targets_read < 0) {
+  fprintf(stderr, "could not open training data\n");
+  net_free(net);
+  free(trainingSamples);
+  free(trainingTargets);
+  return 1;
+}
+
+/* The data files may legitimately hold fewer samples than requested; a
+ * partially filled sample must not be trained on, so derive the sample
+ * count from what was actually read. */
+num_pairs = samples_read / num_inputs;
+if (num_pairs > targets_read) {
+  num_pairs = targets_read;
+}
+if (num_pairs < 1) {
+  fprintf(stderr, "training data too small: no complete samples found\n");
+  net_free(net);
+  free(trainingSamples);
+  free(trainingTargets);
+  return 1;
+}
+if (num_pairs < sample_size) {
+  fprintf(stderr, "warning: requested %d samples, training on %d\n", sample_size, num_pairs);
+}
 
 // training
   int epoch = 0;
@@ -149,11 +196,12 @@ printf("%lf(s) \n",time);
 // net_print(net);
   //net_compute(net,inputs(i),output);
 
-  //for(j=0;j<1;j++)
-  //{
-  //printf("output - %f\n",output[j]);
-  //}
+  //printf("final rolling training error: %lf\n", total_error);
+  //printf("output - %f\n", output[0]);
   net_free(net);
+  free(trainingSamples);
+  free(trainingTargets);
+  return 0;
 }
 
 // validation

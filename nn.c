@@ -197,8 +197,10 @@ net_allocate_l (int no_of_layers, const int *arglist)
   net->output_layer = &net->layer[no_of_layers - 1];
 
   /* default values for network constants */
+  net->no_of_patterns = 0;
   net->momentum = DEFAULT_MOMENTUM;
   net->learning_rate = DEFAULT_LEARNING_RATE;
+  net->global_error = 0.0;
 
   /* initialize weights and deltas */
   net_randomize (net, DEFAULT_WEIGHT_RANGE);
@@ -389,11 +391,11 @@ void
 net_set_weight (network_t *net, int l, int nl, int nu, double weight)
 {
   assert (net != NULL);
-  assert (0 <= l && l < net->no_of_layers);
+  assert (0 <= l && l < net->no_of_layers - 1);
   assert (0 <= nl && nl <= net->layer[l].no_of_neurons);
   assert (0 <= nu && nu < net->layer[l+1].no_of_neurons);
 
-  net->layer[l].neuron[nu].weight[nl] = weight;
+  net->layer[l+1].neuron[nu].weight[nl] = weight;
 }
 
 /*!\brief Retrieve a weight of a network.
@@ -412,7 +414,7 @@ net_get_weight (const network_t *net, int l, int nl, int nu)
   assert (0 <= nl && nl <= net->layer[l].no_of_neurons);
   assert (0 <= nu && nu < net->layer[l+1].no_of_neurons);
 
-  return net->layer[l].neuron[nu].weight[nl];
+  return net->layer[l+1].neuron[nu].weight[nl];
 }
 
 /*!\brief Retrieve a bias weight of a network.
@@ -555,17 +557,17 @@ net_fscan (FILE *file)
   }
 
   /* read network constants */
-  result = fscanf (file, "%f", &net->momentum);
+  result = fscanf (file, "%lf", &net->momentum);
   if (result <= 0) {
     net_free (net);
     return NULL;
   }
-  result = fscanf (file, "%f", &net->learning_rate);
+  result = fscanf (file, "%lf", &net->learning_rate);
   if (result <= 0) {
     net_free (net);
     return NULL;
   }
-  result = fscanf (file, "%f", &net->global_error);
+  result = fscanf (file, "%lf", &net->global_error);
   if (result <= 0) {
     net_free (net);
     return NULL;
@@ -575,7 +577,7 @@ net_fscan (FILE *file)
   for (l = 1; l < net->no_of_layers; l++) {
     for (nu = 0; nu < net->layer[l].no_of_neurons; nu++) {
       for (nl = 0; nl <= net->layer[l - 1].no_of_neurons; nl++) {
-        result = fscanf (file, "%f", &net->layer[l].neuron[nu].weight[nl]);
+        result = fscanf (file, "%lf", &net->layer[l].neuron[nu].weight[nl]);
         if (result <= 0) {
           net_free (net);
           return NULL;

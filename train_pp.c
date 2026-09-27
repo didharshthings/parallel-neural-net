@@ -17,29 +17,27 @@ distributing dataset and training networks at each node
 
 #define MAX_LAYERS 10
 
-void ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
+int ReadFile(char *file_name, int valuesPerLine, int numLines, double* arr){
 	FILE *ifp;
-	int i, j;
-	double val;
+	int i;
+	int wanted = valuesPerLine * numLines;
 	char *mode = "r";
 	ifp = fopen(file_name, mode);
 
 	if (ifp == NULL) {
-
+		return -1;
 	}
 
 	i = 0;
-	while((!feof(ifp)) && (i < (valuesPerLine*numLines)))
+	while((i < wanted) && (fscanf(ifp, "%lf", &arr[i]) == 1))
 	{
-		fscanf(ifp, "%lf ", &val);
-
-		arr[i] = val;
-
 		i++;
 	}
 
 	// closing file
 	fclose(ifp);
+
+	return i;
 }
 void SendInputs(double *input, int trainingInputsCnt, int sendCnt, int worldSize, int tag)
 {
@@ -111,10 +109,18 @@ int main (int argc, char** argv)
 	derived_type_size = atoi(argv[2]);
 	int total_epochs;
 	total_epochs = atoi(argv[3]);
+	/* The weight buffers are allocated as
+	 *   no_of_layers * hidden_layer_width * hidden_layer_width
+	 * doubles and every rank bcasts/sends the whole array, so the derived
+	 * datatype must span exactly that many doubles.  hidden_layer_width is
+	 * derived_type_size after it has been widened below. */
+  derived_type_size += 50 + 1 +1;
+  int derived_total;
+  derived_total = 3 * derived_type_size * derived_type_size;
+
   //MPI Derived data type
   MPI_Datatype global_weights;
-	derived_type_size += 50 + 1 +1;
-  MPI_Type_contiguous(derived_type_size,MPI_DOUBLE,&global_weights);
+  MPI_Type_contiguous(derived_total, MPI_DOUBLE, &global_weights);
   MPI_Type_commit(&global_weights);
 
   // Initialize the pretty printer
@@ -145,15 +151,13 @@ int main (int argc, char** argv)
   trainingFile = "xor.txt";
   trainingTargetFile = "xor_targets.txt";
 
-	int sample_mult, target_mult;
-	sample_mult = 50 * sample_size/(np-1);
-	target_mult = 1 * sample_size/(np-1);
-
   if(rank == 0)
   {
 
-    ReadFile(trainingFile, num_inputs+ sample_mult, sample_size, trainingSamples);
-    ReadFile(trainingTargetFile, num_outputs+ target_mult, sample_size, trainingTargets);
+    /* One sample is exactly num_inputs / num_outputs values; the buffers hold
+     * sample_size samples. Reading extra columns per line overran them. */
+    ReadFile(trainingFile, num_inputs, sample_size, trainingSamples);
+    ReadFile(trainingTargetFile, num_outputs, sample_size, trainingTargets);
 
     SendInputs(&trainingSamples[0], sample_size, num_inputs, np, 11);
 
@@ -165,9 +169,9 @@ int main (int argc, char** argv)
 
 		numTrainingSamples  = sample_size/(np-1);
 
-		MPI_Recv(&trainingSamples[0],(numTrainingSamples * num_inputs+sample_mult),MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingSamples[0], num_inputs * sample_size, MPI_DOUBLE,0,11,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 
-		MPI_Recv(&trainingTargets[0],(numTrainingSamples * num_outputs+target_mult),MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
+		MPI_Recv(&trainingTargets[0], num_outputs * sample_size, MPI_DOUBLE,0,22,MPI_COMM_WORLD,MPI_STATUS_IGNORE);
 		//pprintf("recieved training data by rank %d \n",rank);
 	}
 
@@ -274,7 +278,7 @@ int main (int argc, char** argv)
     int k;
     int l, nu, nl;
 
-    int error;
+    double error;
     MPI_Bcast(local_weights,1,global_weights,0,MPI_COMM_WORLD);
     //pprintf("initial broadcast received- \n ");
       for(i = 1 ;i< local_net->no_of_layers;i++)
@@ -292,7 +296,9 @@ int main (int argc, char** argv)
 								//pprintf("%f \n",trainingSamples[sample]);
 								net_compute(local_net,inputs(sample),output);
 
-								error = net_compute_output_error(local_net, targets(i));
+								/* Select the expected target by training
+								 * sample index, not by the layer counter i. */
+								error = net_compute_output_error(local_net, targets(sample));
 								net_train(local_net);
 
 								if (epoch == 0)
@@ -310,7 +316,7 @@ int main (int argc, char** argv)
 								for(j=0;j< local_net->layer[i].no_of_neurons;j++)
 								for(k=0;k <= local_net->layer[i-1].no_of_neurons;k++)
 								{
-									local_weights[getIndex3d(i,j,k,4,3)]=local_net->layer[i].neuron[j].weight[k];
+									local_weights[getIndex3d(i,j,k,4,derived_type_size)]=local_net->layer[i].neuron[j].weight[k];
 									//pprintf("local_weights after training %f \n",local_net->layer[i].neuron[j].weight[k]);
 								}
 								MPI_Send(local_weights,1, global_weights,0,0, MPI_COMM_WORLD);//write custom mpi reduce
@@ -325,14 +331,19 @@ int main (int argc, char** argv)
 								}
 
         epoch ++;
-        sample += 50*sample_size/(np-1);
+        /* sample is a sample index; inputs(sample) already multiplies it by
+         * num_inputs, so advance one sample at a time and wrap. */
+        sample++;
+        if (sample >= numTrainingSamples) {
+          sample = 0;
+        }
     }
-		//net_free(local_net);
-		//free(local_weights);
+		net_free(local_net);
+		free(local_weights);
 	 }
 
-	 //free(trainingSamples);
-	 //free(trainingTargets);
+	 free(trainingSamples);
+	 free(trainingTargets);
     MPI_Finalize();
 return 0;
 }
